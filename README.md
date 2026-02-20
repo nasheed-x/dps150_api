@@ -11,6 +11,7 @@ Designed for automated testing workflows where an LLM (via MCP) or a Python scri
 | `dps150.py` | Python library + CLI — single-file `DPS150` class wrapping all serial communication |
 | `dps150_mcp.py` | MCP server — exposes the library as tools for Claude Code, Codex, Cursor, Amp, etc. |
 | `PROTOCOL.md` | Full protocol specification reverse-engineered from the official FNIRSI Windows app |
+| `tests/` | 79 pytest tests covering protocol, library, and MCP layer — all serial I/O mocked, no device needed |
 
 ## Requirements
 
@@ -140,6 +141,14 @@ The server exposes these tools:
 - Context manager `__exit__` calls `disconnect()` even on exceptions
 - Sweeps validate the full range before starting and turn output off when done
 - CLI commands that set state use `close()` (output stays on); read-only commands and sweeps use `disconnect()` (output off)
+
+## Tests
+
+79 tests covering protocol encoding (against PROTOCOL.md examples), validation, state parsing, telemetry, and the MCP tool layer. All serial I/O is mocked — no device needed.
+
+```bash
+just test
+```
 
 ## Protocol
 

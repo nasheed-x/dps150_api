@@ -1,5 +1,9 @@
 # FNIRSI DPS-150 Power Supply
 
+# Run test suite (no device needed)
+test:
+    uv run --with pytest --with fastmcp pytest tests/ -v
+
 port := env("DPS150_PORT", "/dev/cu.usbmodem065AD9D205B31")
 py := "uv run dps150.py -p " + port
 

@@ -11,6 +11,9 @@ mcp = ["fastmcp"]
 [project.scripts]
 dps150 = "dps150:_cli"
 
+[tool.setuptools]
+py-modules = ["dps150", "dps150_mcp"]
+
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
