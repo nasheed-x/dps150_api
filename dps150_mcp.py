@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pyserial", "fastmcp"]
+# ///
 """
 FNIRSI DPS-150 MCP Server
 
 Exposes the DPS-150 power supply as MCP tools for LLM-driven control.
 
-Requires: Python 3.10+, fastmcp (`pip install fastmcp`), pyserial
-
 Run:
-    python dps150_mcp.py                      # stdio transport (default)
-    python dps150_mcp.py --transport sse      # SSE transport for web clients
+    uv run dps150_mcp.py                      # stdio transport (default)
+    uv run dps150_mcp.py --transport sse      # SSE transport for web clients
 
 Or configure in Claude Code's MCP settings:
     {

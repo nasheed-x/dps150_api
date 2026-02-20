@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pyserial"]
+# ///
 """
 FNIRSI DPS-150 Power Supply — Python API
 
 All register addresses, offsets, command bytes, and data formats are sourced
 directly from PROTOCOL.md (the canonical spec for this project).
-
-Requires: pyserial (`pip install pyserial`)
 """
 
 import struct

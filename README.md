@@ -14,9 +14,8 @@ Designed for automated testing workflows where an LLM (via MCP) or a Python scri
 
 ## Requirements
 
-- Python 3.10+
-- [pyserial](https://pypi.org/project/pyserial/) (`pip install pyserial`)
-- [fastmcp](https://pypi.org/project/fastmcp/) (`pip install fastmcp`) — only for the MCP server
+- [uv](https://docs.astral.sh/uv/) (recommended) or Python 3.10+ with pip
+- Dependencies are declared inline via [PEP 723](https://peps.python.org/pep-0723/) script metadata — `uv run` installs them automatically
 
 ## Command Line
 
@@ -110,8 +109,8 @@ Add to your MCP client config (Claude Code, Cursor, Amp, Codex, etc.):
 {
   "mcpServers": {
     "dps150": {
-      "command": "python3",
-      "args": ["/path/to/dps150_mcp.py"]
+      "command": "uv",
+      "args": ["run", "/path/to/dps150_mcp.py"]
     }
   }
 }

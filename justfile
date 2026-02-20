@@ -1,7 +1,7 @@
 # FNIRSI DPS-150 Power Supply
 
 port := env("DPS150_PORT", "/dev/cu.usbmodem065AD9D205B31")
-py := "python3 dps150.py -p " + port
+py := "uv run dps150.py -p " + port
 
 # Show device info
 info:
