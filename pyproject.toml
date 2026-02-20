@@ -2,17 +2,39 @@
 name = "dps150"
 version = "0.1.0"
 description = "Python API, CLI, and MCP server for the FNIRSI DPS-150 power supply"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+authors = [{ name = "Nasheed X" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+]
 dependencies = ["pyserial"]
 
 [project.optional-dependencies]
 mcp = ["fastmcp"]
+dev = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/nasheed-x/dps150_api"
 
 [project.scripts]
 dps150 = "dps150:_cli"
 
 [tool.setuptools]
 py-modules = ["dps150", "dps150_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=64"]
