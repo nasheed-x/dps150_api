@@ -8,7 +8,7 @@ Designed for automated testing workflows where an LLM (via MCP) or a Python scri
 
 | File | Description |
 |------|-------------|
-| `dps150.py` | Python library — single-file `DPS150` class wrapping all serial communication |
+| `dps150.py` | Python library + CLI — single-file `DPS150` class wrapping all serial communication |
 | `dps150_mcp.py` | MCP server — exposes the library as tools for Claude Code, Codex, Cursor, Amp, etc. |
 | `PROTOCOL.md` | Full protocol specification reverse-engineered from the official FNIRSI Windows app |
 
@@ -18,9 +18,68 @@ Designed for automated testing workflows where an LLM (via MCP) or a Python scri
 - [pyserial](https://pypi.org/project/pyserial/) (`pip install pyserial`)
 - [fastmcp](https://pypi.org/project/fastmcp/) (`pip install fastmcp`) — only for the MCP server
 
-## Quick Start
+## Command Line
 
-### Python Library
+Every function in the library is available as a CLI subcommand. Commands that set state (voltage, current, output on, protection thresholds, etc.) leave the device running — only read commands and sweeps turn the output off on exit.
+
+```bash
+# Device info
+python dps150.py info
+python dps150.py -p /dev/ttyACM0 info       # specify port
+
+# Full state as JSON
+python dps150.py state
+
+# Read measurements
+python dps150.py voltage
+python dps150.py current
+python dps150.py power
+python dps150.py input-voltage
+python dps150.py temperature
+
+# Set voltage / current (does NOT enable output)
+python dps150.py set-voltage 5.0
+python dps150.py set-current 1.0
+
+# Set voltage + current and turn output ON in one command
+python dps150.py set-output 5.0 1.0
+
+# Toggle output
+python dps150.py on
+python dps150.py off
+
+# Protection thresholds
+python dps150.py set-ovp 25.0
+python dps150.py set-ocp 5.5
+python dps150.py set-opp 130.0
+python dps150.py set-otp 80.0
+python dps150.py set-lvp 3.0
+
+# Presets
+python dps150.py presets
+python dps150.py set-preset 1 3.3 0.5
+
+# Display / sound
+python dps150.py set-brightness 128
+python dps150.py set-volume 5
+
+# Metering (Ah/Wh counters)
+python dps150.py start-metering
+python dps150.py stop-metering
+
+# Voltage sweep: 0→12V, 0.5V steps, 0.5s hold, 1A limit
+python dps150.py sweep-voltage 0 12 0.5 0.5 1.0
+
+# Current sweep: 0→3A, 0.1A steps, 0.5s hold, 5V fixed
+python dps150.py sweep-current 0 3 0.1 0.5 5.0
+
+# Restart device
+python dps150.py restart
+```
+
+The default port is `/dev/cu.usbmodem065AD9D205B31`. Override with `-p PORT`.
+
+## Python Library
 
 ```python
 from dps150 import DPS150
@@ -41,16 +100,9 @@ with DPS150("/dev/cu.usbmodemXXX") as psu:
         print(f"  {r['voltage']:.2f}V  {r['current']:.3f}A  {r['power']:.2f}W")
 ```
 
-Output is automatically turned off when the context manager exits (even on exceptions).
+Output is automatically turned off when the context manager exits (even on exceptions). Use `psu.close()` instead of `psu.disconnect()` if you want to detach without turning the output off.
 
-### Command Line
-
-```bash
-# Quick self-test: connect, read state, disconnect
-python dps150.py /dev/cu.usbmodemXXX
-```
-
-### MCP Server
+## MCP Server
 
 Add to your MCP client config (Claude Code, Cursor, Amp, Codex, etc.):
 
@@ -88,6 +140,7 @@ The server exposes these tools:
 - `disconnect()` always turns the output off first
 - Context manager `__exit__` calls `disconnect()` even on exceptions
 - Sweeps validate the full range before starting and turn output off when done
+- CLI commands that set state use `close()` (output stays on); read-only commands and sweeps use `disconnect()` (output off)
 
 ## Protocol
 

@@ -277,13 +277,28 @@ class DPS150:
             self._lvp_ceiling = state.get("lvp_ceiling", 0.0)
 
     def disconnect(self):
-        """Turn output off and close the session."""
+        """Turn output off and close the session (safe shutdown)."""
         if self._ser and self._ser.is_open:
             self.stop_telemetry()
             try:
                 self.output_off()
             except Exception:
                 pass
+            try:
+                self._send_and_recv(CMD_SESSION, 0x00, b"\x00", wait=0.3)
+            except Exception:
+                pass
+            self._ser.close()
+        self._ser = None
+
+    def close(self):
+        """Close the session without turning output off.
+
+        Use this when you want to detach from the device but leave it
+        running in its current state (e.g. CLI one-shot commands).
+        """
+        if self._ser and self._ser.is_open:
+            self.stop_telemetry()
             try:
                 self._send_and_recv(CMD_SESSION, 0x00, b"\x00", wait=0.3)
             except Exception:
@@ -789,31 +804,232 @@ class DPS150:
 
 
 # ---------------------------------------------------------------------------
-# __main__ — quick self-test
+# CLI
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
+def _cli():
+    import argparse
+    import json as _json
     import sys
 
-    port = sys.argv[1] if len(sys.argv) > 1 else "/dev/cu.usbmodem065AD9D205B31"
-    print(f"Connecting to DPS-150 on {port}...")
+    parser = argparse.ArgumentParser(
+        prog="dps150",
+        description="FNIRSI DPS-150 command-line interface",
+    )
+    parser.add_argument(
+        "-p", "--port",
+        default="/dev/cu.usbmodem065AD9D205B31",
+        help="serial port (default: %(default)s)",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    with DPS150(port) as psu:
-        print(f"Model:    {psu.model}")
-        print(f"Firmware: {psu.firmware_version}")
-        print(f"Hardware: {psu.hardware_version}")
-        print(f"Max V:    {psu.max_voltage:.1f} V")
-        print(f"Max A:    {psu.max_current:.1f} A")
-        print()
+    # -- info ----------------------------------------------------------------
+    sub.add_parser("info", help="show device info")
 
-        state = psu.read_state()
-        if state:
-            for k, v in state.items():
-                if k == "presets":
-                    for i, p in enumerate(v):
-                        print(f"  M{i+1}: {p['voltage']:.2f}V / {p['current']:.3f}A")
-                else:
-                    print(f"  {k}: {v}")
+    # -- state ---------------------------------------------------------------
+    sub.add_parser("state", help="read full state dump (JSON)")
+
+    # -- voltage / current readings ------------------------------------------
+    sub.add_parser("voltage", help="read measured output voltage")
+    sub.add_parser("current", help="read measured output current")
+    sub.add_parser("power", help="read measured output power")
+    sub.add_parser("input-voltage", help="read input supply voltage")
+    sub.add_parser("temperature", help="read internal temperature")
+
+    # -- set-voltage ---------------------------------------------------------
+    p = sub.add_parser("set-voltage", help="set voltage setpoint")
+    p.add_argument("volts", type=float)
+
+    # -- set-current ---------------------------------------------------------
+    p = sub.add_parser("set-current", help="set current limit")
+    p.add_argument("amps", type=float)
+
+    # -- set-output ----------------------------------------------------------
+    p = sub.add_parser("set-output", help="set V/A and enable output")
+    p.add_argument("volts", type=float)
+    p.add_argument("amps", type=float)
+
+    # -- on / off ------------------------------------------------------------
+    sub.add_parser("on", help="enable output")
+    sub.add_parser("off", help="disable output")
+
+    # -- protection ----------------------------------------------------------
+    p = sub.add_parser("set-ovp", help="set over-voltage protection")
+    p.add_argument("volts", type=float)
+
+    p = sub.add_parser("set-ocp", help="set over-current protection")
+    p.add_argument("amps", type=float)
+
+    p = sub.add_parser("set-opp", help="set over-power protection")
+    p.add_argument("watts", type=float)
+
+    p = sub.add_parser("set-otp", help="set over-temperature protection")
+    p.add_argument("celsius", type=float)
+
+    p = sub.add_parser("set-lvp", help="set low-voltage protection")
+    p.add_argument("volts", type=float)
+
+    # -- presets -------------------------------------------------------------
+    sub.add_parser("presets", help="read all presets")
+
+    p = sub.add_parser("set-preset", help="set a preset (M1-M6)")
+    p.add_argument("n", type=int, choices=range(1, 7), metavar="N")
+    p.add_argument("volts", type=float)
+    p.add_argument("amps", type=float)
+
+    # -- brightness / volume -------------------------------------------------
+    p = sub.add_parser("set-brightness", help="set display brightness (0-255)")
+    p.add_argument("level", type=int)
+
+    p = sub.add_parser("set-volume", help="set beep volume (0-255)")
+    p.add_argument("level", type=int)
+
+    # -- metering ------------------------------------------------------------
+    sub.add_parser("start-metering", help="enable Ah/Wh counters")
+    sub.add_parser("stop-metering", help="disable Ah/Wh counters")
+
+    # -- sweeps --------------------------------------------------------------
+    p = sub.add_parser("sweep-voltage", help="voltage sweep with readings")
+    p.add_argument("start_v", type=float)
+    p.add_argument("stop_v", type=float)
+    p.add_argument("step_v", type=float)
+    p.add_argument("hold_s", type=float)
+    p.add_argument("current_limit", type=float)
+
+    p = sub.add_parser("sweep-current", help="current sweep with readings")
+    p.add_argument("start_a", type=float)
+    p.add_argument("stop_a", type=float)
+    p.add_argument("step_a", type=float)
+    p.add_argument("hold_s", type=float)
+    p.add_argument("voltage", type=float)
+
+    # -- restart -------------------------------------------------------------
+    sub.add_parser("restart", help="restart the device")
+
+    args = parser.parse_args()
+
+    # Commands that should leave output running when done
+    KEEP_OUTPUT = {"set-voltage", "set-current", "set-output", "on",
+                   "set-ovp", "set-ocp", "set-opp", "set-otp", "set-lvp",
+                   "set-preset", "set-brightness", "set-volume",
+                   "start-metering", "stop-metering"}
+
+    psu = DPS150(args.port)
+    psu.connect()
+
+    try:
+        cmd = args.command
+
+        if cmd == "info":
+            print(f"Model:    {psu.model}")
+            print(f"Firmware: {psu.firmware_version}")
+            print(f"Hardware: {psu.hardware_version}")
+            print(f"Max V:    {psu.max_voltage:.1f} V")
+            print(f"Max A:    {psu.max_current:.1f} A")
+
+        elif cmd == "state":
+            state = psu.read_state()
+            if state:
+                print(_json.dumps(state, indent=2))
+            else:
+                print("Error: failed to read state", file=sys.stderr)
+                sys.exit(1)
+
+        elif cmd == "voltage":
+            print(f"{psu.read_voltage():.3f}")
+        elif cmd == "current":
+            print(f"{psu.read_current():.4f}")
+        elif cmd == "power":
+            print(f"{psu.read_power():.3f}")
+        elif cmd == "input-voltage":
+            print(f"{psu.read_input_voltage():.2f}")
+        elif cmd == "temperature":
+            print(f"{psu.read_temperature():.1f}")
+
+        elif cmd == "set-voltage":
+            psu.set_voltage(args.volts)
+            print(f"Voltage setpoint: {args.volts:.3f} V")
+        elif cmd == "set-current":
+            psu.set_current(args.amps)
+            print(f"Current limit: {args.amps:.3f} A")
+        elif cmd == "set-output":
+            psu.set_output(args.volts, args.amps)
+            print(f"Output ON: {args.volts:.3f} V / {args.amps:.3f} A")
+        elif cmd == "on":
+            psu.output_on()
+            print("Output ON")
+        elif cmd == "off":
+            psu.output_off()
+            print("Output OFF")
+
+        elif cmd == "set-ovp":
+            psu.set_ovp(args.volts)
+            print(f"OVP: {args.volts:.2f} V")
+        elif cmd == "set-ocp":
+            psu.set_ocp(args.amps)
+            print(f"OCP: {args.amps:.3f} A")
+        elif cmd == "set-opp":
+            psu.set_opp(args.watts)
+            print(f"OPP: {args.watts:.2f} W")
+        elif cmd == "set-otp":
+            psu.set_otp(args.celsius)
+            print(f"OTP: {args.celsius:.1f} C")
+        elif cmd == "set-lvp":
+            psu.set_lvp(args.volts)
+            print(f"LVP: {args.volts:.2f} V")
+
+        elif cmd == "presets":
+            presets = psu.get_presets()
+            for i, p in enumerate(presets):
+                print(f"M{i+1}: {p['voltage']:.2f} V / {p['current']:.3f} A")
+        elif cmd == "set-preset":
+            psu.set_preset(args.n, args.volts, args.amps)
+            print(f"M{args.n}: {args.volts:.2f} V / {args.amps:.3f} A")
+
+        elif cmd == "set-brightness":
+            psu.set_brightness(args.level)
+            print(f"Brightness: {args.level}")
+        elif cmd == "set-volume":
+            psu.set_volume(args.level)
+            print(f"Volume: {args.level}")
+
+        elif cmd == "start-metering":
+            psu.start_metering()
+            print("Metering started")
+        elif cmd == "stop-metering":
+            psu.stop_metering()
+            print("Metering stopped")
+
+        elif cmd == "sweep-voltage":
+            def _sv_cb(i, v, a, p):
+                print(f"  [{i:3d}] {v:7.3f} V  {a:6.4f} A  {p:7.3f} W")
+            results = psu.sweep_voltage(
+                args.start_v, args.stop_v, args.step_v,
+                args.hold_s, args.current_limit, callback=_sv_cb,
+            )
+            print(f"\n{len(results)} steps recorded")
+
+        elif cmd == "sweep-current":
+            def _sc_cb(i, v, a, p):
+                print(f"  [{i:3d}] {v:7.3f} V  {a:6.4f} A  {p:7.3f} W")
+            results = psu.sweep_current(
+                args.start_a, args.stop_a, args.step_a,
+                args.hold_s, args.voltage, callback=_sc_cb,
+            )
+            print(f"\n{len(results)} steps recorded")
+
+        elif cmd == "restart":
+            psu.restart()
+            print("Restart command sent")
+
+    except (ValueError, IOError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        if args.command in KEEP_OUTPUT:
+            psu.close()
         else:
-            print("  (failed to read state)")
+            psu.disconnect()
 
-    print("\nDisconnected.")
+
+if __name__ == "__main__":
+    _cli()
