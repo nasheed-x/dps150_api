@@ -27,7 +27,7 @@ HEADER_RX = 0xF0  # device → host
 CMD_READ = 0xA1
 CMD_BAUD = 0xB0
 CMD_WRITE = 0xB1
-CMD_RESTART = 0xC0
+CMD_DFU = 0xC0  # enters firmware upgrade mode — NOT a normal restart
 CMD_SESSION = 0xC1
 
 # §5.1 Readable Registers
@@ -545,9 +545,14 @@ class DPS150:
         """Disable the Ah/Wh metering counters."""
         self._write_byte(REG_W_METERING, 0)
 
-    def restart(self):
-        """Send a system restart command (§3, CMD_RESTART)."""
-        self._send(CMD_RESTART, 0x00, b"\x01")
+    def enter_dfu(self):
+        """Enter firmware upgrade (DFU) mode.
+
+        WARNING: This is NOT a normal restart. The device enters its
+        bootloader and the USB port disappears. You must physically
+        unplug and replug the USB cable to return to normal operation.
+        """
+        self._send(CMD_DFU, 0x00, b"\x01")
 
     # -- Sweeps (blocking) ---------------------------------------------------
 
@@ -904,8 +909,8 @@ def _cli():
     p.add_argument("hold_s", type=float)
     p.add_argument("voltage", type=float)
 
-    # -- restart -------------------------------------------------------------
-    sub.add_parser("restart", help="restart the device")
+    # -- firmware upgrade mode ------------------------------------------------
+    sub.add_parser("dfu", help="enter firmware upgrade mode (WARNING: requires USB replug to recover)")
 
     args = parser.parse_args()
 
@@ -1019,9 +1024,11 @@ def _cli():
             )
             print(f"\n{len(results)} steps recorded")
 
-        elif cmd == "restart":
-            psu.restart()
-            print("Restart command sent")
+        elif cmd == "dfu":
+            print("WARNING: Device will enter firmware upgrade mode.")
+            print("You must unplug and replug USB to return to normal operation.")
+            psu.enter_dfu()
+            print("DFU mode entered.")
 
     except (ValueError, IOError) as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -73,8 +73,8 @@ python dps150.py sweep-voltage 0 12 0.5 0.5 1.0
 # Current sweep: 0→3A, 0.1A steps, 0.5s hold, 5V fixed
 python dps150.py sweep-current 0 3 0.1 0.5 5.0
 
-# Restart device
-python dps150.py restart
+# Enter firmware upgrade mode (WARNING: requires USB replug to recover)
+python dps150.py dfu
 ```
 
 The default port is `/dev/cu.usbmodem065AD9D205B31`. Override with `-p PORT`.

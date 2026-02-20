@@ -96,6 +96,6 @@ sweep-voltage start stop step hold current_limit:
 sweep-current start stop step hold voltage:
     {{py}} sweep-current {{start}} {{stop}} {{step}} {{hold}} {{voltage}}
 
-# Restart device
-restart:
-    {{py}} restart
+# Enter firmware upgrade mode (WARNING: requires USB replug to recover)
+dfu:
+    {{py}} dfu

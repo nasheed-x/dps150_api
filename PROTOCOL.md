@@ -86,7 +86,7 @@ for each byte in data:
 | 161 | 0xA1 | Read | Read register value / response from device |
 | 176 | 0xB0 | Write | Set baud rate |
 | 177 | 0xB1 | Write | Write register value |
-| 192 | 0xC0 | Write | System control (restart) |
+| 192 | 0xC0 | Write | Enter firmware upgrade (DFU) mode — **not** a normal restart (see §12) |
 | 193 | 0xC1 | Write | Session control (connect/disconnect) |
 
 ---
@@ -405,10 +405,15 @@ TX: F1 A1 E0 01 00 E1
 RX: F0 A1 E0 XX [string bytes...] [checksum]
 ```
 
-### System Restart
+### Enter Firmware Upgrade (DFU) Mode
 ```
 TX: F1 C0 00 01 01 02
 ```
+
+> **WARNING:** This does NOT perform a normal restart. The device enters its bootloader
+> (firmware upgrade mode) and the USB CDC port disappears. A physical USB unplug/replug
+> is required to return to normal operation. No reference implementation uses this command.
+> It was identified from the .NET decompilation's `CMD_192` handler.
 
 ---
 
@@ -473,6 +478,7 @@ Up to 10 steps, loopable N times with configurable start/stop rows.
 - Read requests: the official app sends reads with length=1 and a zero data byte (e.g. `F1 A1 DE 01 00 DF`). Some third-party implementations send reads with length=0 and no data byte (e.g. `F1 A1 DE 00 DE`). Both formats are accepted by the device.
 - **Checksum validation may be lenient:** The official app has a bug in `CmdMoudle.setContent()` where modifying a command's payload does not recalculate the checksum. This means the baud rate command (CMD_13) is sent with an incorrect checksum, yet the device accepts it. Implementations should still compute correct checksums, but be aware the device may not strictly validate them on the RX side.
 - Volume (offset 0x61 / register 0xD7): present in the full state dump and writable as a register, but the official Windows app never exposes it in the UI. Third-party implementations (cho45, Python, Rust) all document and use it.
+- **Command 0xC0 is NOT a restart — it enters firmware upgrade (DFU/bootloader) mode.** The USB CDC port disappears and a physical unplug/replug is required to recover. None of the 4 reference implementations use this command. It was originally labeled "System Restart" based on the .NET decompilation, but on-device testing confirms it enters the bootloader. There is no known command for a normal soft restart.
 
 ---
 
